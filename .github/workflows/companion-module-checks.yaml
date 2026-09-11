@@ -1,0 +1,29 @@
+name: Companion Module Checks
+
+on:
+  push:
+
+jobs:
+  check:
+    name: Check module
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      # Bitfocus's own module validation: it builds the module and checks the
+      # manifest, entrypoint and package the way the app store will.
+      - uses: actions/checkout@v4
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - name: Prepare environment
+        run: corepack enable
+      - name: Install
+        run: yarn install
+        env:
+          CI: true
+      - name: Build and package
+        run: yarn package
+        env:
+          CI: true

@@ -1,0 +1,28 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
+	"id": "obs-multisite",
+	"name": "obs-multisite",
+	"shortname": "obs-multisite",
+	"description": "Control a Multisite broadcast: go live, drop markers, and drive a campus feed's timeslipping from a Stream Deck.",
+	"version": "0.1.0",
+	"license": "GPL-3.0-only",
+	"repository": "git+https://github.com/stageaudioworks/companion-module-obs-multisite.git",
+	"bugs": "https://github.com/stageaudioworks/companion-module-obs-multisite/issues",
+	"maintainers": [
+		{
+			"name": "Stage Audio Works",
+			"email": "info@stageaudioworks.com"
+		}
+	],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../dist/main.js"
+	},
+	"legacyIds": [],
+	"manufacturer": "Stage Audio Works",
+	"products": ["obs-multisite"],
+	"keywords": ["obs", "multisite", "church", "broadcast", "video", "stream"]
+}

@@ -280,5 +280,14 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 	}
 
+	// An appliance is a receiver. Offering it "Go live", "End" or a marker
+	// button would be offering buttons whose only possible outcome is a
+	// refusal, which is worse than not offering them.
+	if (!self.isObs) {
+		actions.encoder_go_live = undefined
+		actions.encoder_end = undefined
+		actions.encoder_marker = undefined
+	}
+
 	self.setActionDefinitions(actions)
 }

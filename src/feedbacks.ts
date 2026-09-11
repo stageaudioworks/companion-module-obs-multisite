@@ -167,5 +167,12 @@ export function UpdateFeedbacks(self: ModuleInstance): void {
 		},
 	}
 
+	// As with the actions: an appliance has no encoder, so there is no reading
+	// for a button to light up about.
+	if (!self.isObs) {
+		feedbacks.encoder_live = undefined
+		feedbacks.encoder_link_health = undefined
+	}
+
 	self.setFeedbackDefinitions(feedbacks)
 }

@@ -2,9 +2,18 @@ import { InstanceBase, InstanceStatus } from '@companion-module/base'
 import type { CompanionVariableValues, JsonObject, SomeCompanionConfigField } from '@companion-module/base'
 
 import { GetConfigFields } from './config.js'
-import type { ModuleConfig, ModuleSecrets } from './types.js'
-import type { EncoderStatus, DecoderStatus, EventsResponse } from './types.js'
-import { MultisiteConnection, EVENT_ENCODER_STATE, EVENT_DECODER_STATE } from './connection.js'
+import type {
+	ConnectionType,
+	DecoderStatus,
+	EncoderStatus,
+	EventsResponse,
+	ModuleConfig,
+	ModuleSecrets,
+} from './types.js'
+import { defaultPortFor } from './transport.js'
+import type { Transport, TransportEvents } from './transport.js'
+import { ObsTransport } from './transport-obs.js'
+import { ApplianceTransport } from './transport-appliance.js'
 import { UpdateActions, type ActionsSchema } from './actions.js'
 import { UpdateFeedbacks, type FeedbacksSchema } from './feedbacks.js'
 import { UpdateVariables, UpdateVariableValues } from './variables.js'
@@ -16,8 +25,8 @@ export type ModuleSchema = {
 	secrets: ModuleSecrets
 	actions: ActionsSchema
 	feedbacks: FeedbacksSchema
-	// Variables stay untyped: several are built from the plugin's document,
-	// which this module deliberately does not pin to a version.
+	// Variables stay untyped: several are built from the document the far end
+	// sends, which this module deliberately does not pin to a version.
 	variables: CompanionVariableValues
 }
 
@@ -25,24 +34,21 @@ export { UpgradeScripts }
 
 /** How long to wait before asking again, at most, after a drop. */
 const MAX_RECONNECT_MS = 30_000
-/** The safety net: the plugin also pushes changes, but a missed event must not leave a stale button. */
-const POLL_INTERVAL_MS = 5000
 
 export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	config!: ModuleConfig
 	secrets!: ModuleSecrets
-
-	readonly conn: MultisiteConnection
 
 	/** The last document each half reported. Empty until the first reply. */
 	encoderStatus: EncoderStatus = {}
 	decoderStatus: DecoderStatus = {}
 	events: EventsResponse = {}
 
-	/** Which halves this machine has. A satellite has no encoder request to reach. */
+	/** Which halves this machine has. A campus player has no encoder at all. */
 	hasEncoder = false
 	hasDecoder = false
 
+	private transport?: Transport
 	private reconnectTimer?: NodeJS.Timeout
 	private pollTimer?: NodeJS.Timeout
 	private reconnectDelayMs = 1000
@@ -50,21 +56,24 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 
 	constructor(internal: unknown) {
 		super(internal)
-		this.conn = new MultisiteConnection({
-			onConnected: () => void this.handleConnected(),
-			onDisconnected: (reason) => this.handleDisconnected(reason),
-			onVendorEvent: (eventType, eventData) => this.handleVendorEvent(eventType, eventData),
-		})
+	}
+
+	/** What this connection is pointed at. */
+	get connectionType(): ConnectionType {
+		return this.config?.connection_type === 'appliance' ? 'appliance' : 'obs'
+	}
+
+	/** True when this is OBS with the plugin — the only end with an encoder half. */
+	get isObs(): boolean {
+		return this.connectionType === 'obs'
 	}
 
 	async init(config: ModuleConfig, _isFirstInit: boolean, secrets: ModuleSecrets): Promise<void> {
 		this.config = config
 		this.secrets = secrets
 
-		this.updateActions()
-		this.updateFeedbacks()
-		this.updatePresets()
-		this.updateVariables()
+		this.syncTransport()
+		this.refreshDefinitions()
 
 		await this.reconnect()
 	}
@@ -72,20 +81,24 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	async configUpdated(config: ModuleConfig, secrets: ModuleSecrets): Promise<void> {
 		this.config = config
 		this.secrets = secrets
-		// A different OBS is a different broadcast: forget everything the last
+		// A different end is a different broadcast: forget everything the last
 		// one said before pointing at the new one.
 		this.encoderStatus = {}
 		this.decoderStatus = {}
 		this.events = {}
 		this.hasEncoder = false
 		this.hasDecoder = false
+
+		this.syncTransport()
+		this.refreshDefinitions()
+
 		await this.reconnect()
 	}
 
 	async destroy(): Promise<void> {
 		this.destroyed = true
 		this.clearTimers()
-		await this.conn.disconnect()
+		await this.transport?.disconnect()
 	}
 
 	getConfigFields(): SomeCompanionConfigField[] {
@@ -117,24 +130,58 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		UpdateVariableValues(this)
 	}
 
-	// ── The connection ───────────────────────────────────────────────────────
+	// ── The transport ───────────────────────────────────────────────────────
 
-	/** Connect, refusing to start when the two required fields are missing. */
+	private makeTransport(kind: ConnectionType): Transport {
+		const events: TransportEvents = {
+			onConnected: () => this.handleConnected(),
+			onDisconnected: (reason) => this.handleDisconnected(reason),
+			onStateEvent: (half, data) => this.handleStateEvent(half, data),
+		}
+		return kind === 'appliance' ? new ApplianceTransport(events) : new ObsTransport(events)
+	}
+
+	/**
+	 * Put the right transport in place. Called on start and whenever the config
+	 * changes, because changing what this connection points at means starting
+	 * again rather than talking to the old end with the new rules.
+	 */
+	private syncTransport(): void {
+		const kind = this.connectionType
+		if (this.transport?.kind === kind) return
+
+		const previous = this.transport
+		void previous?.disconnect()
+		this.transport = this.makeTransport(kind)
+	}
+
+	/**
+	 * Re-register everything whose shape depends on the end. An appliance cannot
+	 * publish an encoder, so offering "Go live" to one would be offering a
+	 * button that can only fail.
+	 */
+	private refreshDefinitions(): void {
+		this.updateActions()
+		this.updateFeedbacks()
+		this.updatePresets()
+		this.updateVariables()
+	}
+
+	// ── Connecting ──────────────────────────────────────────────────────────
+
 	private async reconnect(): Promise<void> {
 		this.clearTimers()
+		if (!this.transport) this.syncTransport()
 
 		if (!this.config?.host) {
-			this.updateStatus(InstanceStatus.BadConfig, 'No OBS host set')
-			return
-		}
-		if (!this.config?.port) {
-			this.updateStatus(InstanceStatus.BadConfig, 'No OBS WebSocket port set')
+			this.updateStatus(InstanceStatus.BadConfig, 'No host set')
 			return
 		}
 
+		const port = this.config.port > 0 ? this.config.port : defaultPortFor(this.connectionType)
 		this.updateStatus(InstanceStatus.Connecting)
 		try {
-			await this.conn.connect(this.config.host, this.config.port, this.secrets?.password ?? '')
+			await this.transport!.connect(this.config.host, port, this.secrets?.password ?? '')
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error)
 			this.updateStatus(InstanceStatus.ConnectionFailure, reason)
@@ -144,6 +191,9 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 
 	private scheduleReconnect(): void {
 		if (this.destroyed) return
+		// One timer, always: a disconnect noticed while a reconnect was already
+		// pending must not leave the first one to fire later as well.
+		if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
 		const delay = this.reconnectDelayMs
 		this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, MAX_RECONNECT_MS)
 		this.reconnectTimer = setTimeout(() => void this.reconnect(), delay)
@@ -152,9 +202,9 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	private handleConnected(): void {
 		this.reconnectDelayMs = 1000
 		this.updateStatus(InstanceStatus.Ok)
-		this.log('info', 'connected to OBS')
+		this.log('info', this.isObs ? 'connected to OBS' : 'connected to the campus player')
 		void this.refreshAll()
-		this.pollTimer = setInterval(() => void this.refreshAll(), POLL_INTERVAL_MS)
+		this.pollTimer = setInterval(() => void this.refreshAll(), this.transport?.pollIntervalMs ?? 5000)
 	}
 
 	private handleDisconnected(reason: string): void {
@@ -165,9 +215,9 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		this.scheduleReconnect()
 	}
 
-	private handleVendorEvent(eventType: string, eventData: JsonObject): void {
-		if (eventType === EVENT_ENCODER_STATE) this.applyEncoderStatus(eventData)
-		else if (eventType === EVENT_DECODER_STATE) this.applyDecoderStatus(eventData)
+	private handleStateEvent(half: 'encoder' | 'decoder', data: JsonObject): void {
+		if (half === 'encoder') this.applyEncoderStatus(data)
+		else this.applyDecoderStatus(data)
 	}
 
 	private clearTimers(): void {
@@ -184,19 +234,22 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	// ── Reading and writing the state ────────────────────────────────────────
 
 	/**
-	 * Ask both halves what they are doing. This is what fills the buttons in
-	 * after connecting mid-event, when the next pushed change may be minutes
-	 * away. Each half is asked independently: one being absent is normal, not a
-	 * fault — a satellite has no encoder.
+	 * Ask what the far end is doing. This is what fills the buttons in after
+	 * connecting mid-event, when the next pushed change may be minutes away —
+	 * and on an appliance, where nothing is ever pushed, it is the only way the
+	 * state arrives at all. Each half is asked independently: one being absent
+	 * is normal, not a fault.
 	 */
 	async refreshAll(): Promise<void> {
-		if (!this.conn.isConnected) return
-		await Promise.allSettled([this.refreshEncoder(), this.refreshDecoder()])
+		if (!this.transport?.isConnected) return
+		const jobs: Promise<void>[] = [this.refreshDecoder()]
+		if (this.transport.hasEncoderHalf) jobs.push(this.refreshEncoder())
+		await Promise.allSettled(jobs)
 	}
 
 	async refreshEncoder(): Promise<void> {
 		try {
-			const status = await this.conn.vendor('encoder/status')
+			const status = await this.transport!.call('encoder/status')
 			if (typeof status.error === 'string') {
 				this.hasEncoder = false
 			} else {
@@ -204,14 +257,14 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 				this.applyEncoderStatus(status)
 			}
 		} catch {
-			// Not worth a log line every five seconds: either this machine has
-			// no encoder half, or the socket has just gone.
+			// Not worth a log line every few seconds: either this end has no
+			// encoder half, or the connection has just gone.
 		}
 	}
 
 	async refreshDecoder(): Promise<void> {
 		try {
-			const status = await this.conn.vendor('decoder/status')
+			const status = await this.transport!.call('decoder/status')
 			if (typeof status.error === 'string') {
 				this.hasDecoder = false
 			} else {
@@ -227,7 +280,9 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	applyEncoderStatus(status: JsonObject): void {
 		this.encoderStatus = status
 		this.publishVariables()
-		this.checkFeedbacks('encoder_live', 'encoder_link_health')
+		// An appliance has no encoder feedbacks registered, and asking Companion
+		// to check a definition that does not exist is a warning every second.
+		if (this.isObs) this.checkFeedbacks('encoder_live', 'encoder_link_health')
 	}
 
 	applyDecoderStatus(status: JsonObject): void {
@@ -248,7 +303,7 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	/** The recordings list, fetched on demand — for an action or a dropdown. */
 	async fetchEvents(): Promise<EventsResponse> {
 		try {
-			const res = await this.conn.vendor('decoder/events')
+			const res = await this.transport!.call('decoder/events')
 			this.events = res
 		} catch {
 			this.events = { error: 'could not read the recordings list' }
@@ -257,18 +312,19 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	}
 
 	/**
-	 * Run a vendor command and fold its reply into the state. Every control
-	 * request answers with the new status document, so a button updates itself
-	 * from the response rather than waiting for the next pushed event.
+	 * Run a command and fold its reply into the state. Both ends answer a
+	 * control with the new status document, so a button updates itself from the
+	 * response rather than waiting for the next push or poll.
 	 */
 	async command(
-		requestType: string,
-		requestData: JsonObject = {},
+		operation: string,
+		params: JsonObject = {},
 		half: 'encoder' | 'decoder' = 'decoder',
 	): Promise<JsonObject> {
-		const res = await this.conn.vendor(requestType, requestData)
+		if (!this.transport) return { error: 'not connected' }
+		const res = await this.transport.call(operation, params)
 		if (typeof res.error === 'string' && res.error !== '') {
-			this.log('warn', `${requestType} refused: ${res.error}`)
+			this.log('warn', `${operation} refused: ${res.error}`)
 			return res
 		}
 		if (half === 'encoder') this.applyEncoderStatus(res)

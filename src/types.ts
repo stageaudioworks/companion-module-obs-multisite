@@ -1,12 +1,25 @@
 import type { JsonObject } from '@companion-module/base'
 
 /**
+ * What this connection is pointed at.
+ *
+ * The two are the same controls over two different wires: OBS runs the plugin,
+ * which answers obs-websocket vendor requests; a campus player appliance has no
+ * OBS at all and answers plain HTTP. Everything above the transport — the
+ * actions, the feedbacks, the variables, the presets — is written once and
+ * works against either.
+ */
+export type ConnectionType = 'obs' | 'appliance'
+
+/**
  * The connection fields. The password is deliberately NOT here: it is a
  * secret-text field, so Companion stores it in its secrets store rather than in
  * the config that is reported to the web UI.
  */
 export type ModuleConfig = {
+	connection_type?: ConnectionType
 	host: string
+	/** 0 means "the default for this kind of connection" — see defaultPortFor(). */
 	port: number
 }
 

@@ -1,6 +1,6 @@
 //
-// connection.ts — the obs-websocket connection, and the one place the plugin's
-// vendor API is spoken to.
+// transport-obs.ts — obs-websocket, and the one place the plugin's vendor API
+// is spoken to.
 //
 // This module does NOT share a connection with Companion's OBS Studio module:
 // Companion modules each own their connection, so this one takes the same host,
@@ -11,6 +11,7 @@ import OBSWebSocket from 'obs-websocket-js'
 import type { JsonObject } from '@companion-module/base'
 
 import { asJsonObject } from './types.js'
+import type { Transport, TransportEvents } from './transport.js'
 
 /** The vendor name the obs-multisite plugin registers with rather than one the client chooses. */
 export const VENDOR_NAME = 'obs-multisite'
@@ -19,37 +20,34 @@ export const VENDOR_NAME = 'obs-multisite'
 export const EVENT_ENCODER_STATE = 'encoder/state'
 export const EVENT_DECODER_STATE = 'decoder/state'
 
-export interface ConnectionCallbacks {
-	/** The socket is up and identified. */
-	onConnected: () => void
-	/** The socket went away, with something to put in the log. */
-	onDisconnected: (reason: string) => void
-	/** A vendor event this module cares about. */
-	onVendorEvent: (eventType: string, eventData: JsonObject) => void
-}
+export class ObsTransport implements Transport {
+	readonly kind = 'obs' as const
+	/** Events carry the news here, so this is only the safety net. */
+	readonly pollIntervalMs = 5000
+	readonly hasEncoderHalf = true
 
-export class MultisiteConnection {
 	private readonly ws = new OBSWebSocket()
-	private readonly callbacks: ConnectionCallbacks
+	private readonly events: TransportEvents
 	private connected = false
 
-	constructor(callbacks: ConnectionCallbacks) {
-		this.callbacks = callbacks
+	constructor(events: TransportEvents) {
+		this.events = events
 
 		this.ws.on('ConnectionOpened', () => {
 			this.connected = true
 		})
 		this.ws.on('ConnectionClosed', (error) => {
 			this.connected = false
-			this.callbacks.onDisconnected(error?.message ?? 'the connection closed')
+			this.events.onDisconnected(error?.message ?? 'the connection closed')
 		})
 		this.ws.on('ConnectionError', (error) => {
 			this.connected = false
-			this.callbacks.onDisconnected(error?.message ?? 'the connection failed')
+			this.events.onDisconnected(error?.message ?? 'the connection failed')
 		})
 		this.ws.on('VendorEvent', ({ vendorName, eventType, eventData }) => {
 			if (vendorName !== VENDOR_NAME) return
-			this.callbacks.onVendorEvent(eventType, asJsonObject(eventData))
+			if (eventType === EVENT_ENCODER_STATE) this.events.onStateEvent('encoder', asJsonObject(eventData))
+			else if (eventType === EVENT_DECODER_STATE) this.events.onStateEvent('decoder', asJsonObject(eventData))
 		})
 	}
 
@@ -57,15 +55,10 @@ export class MultisiteConnection {
 		return this.connected
 	}
 
-	/**
-	 * Open the connection. `onConnected` fires once the socket is identified,
-	 * which is later than the promise resolving for a reconnect — so the caller
-	 * should treat the callback, not this promise, as "ready".
-	 */
 	async connect(host: string, port: number, password: string): Promise<void> {
 		await this.ws.connect(`ws://${host}:${port}`, password || undefined)
 		this.connected = true
-		this.callbacks.onConnected()
+		this.events.onConnected()
 	}
 
 	async disconnect(): Promise<void> {
@@ -77,16 +70,11 @@ export class MultisiteConnection {
 		}
 	}
 
-	/**
-	 * Call a vendor request and return its `responseData`. A refusal arrives as
-	 * an `error` field inside that object — obs-websocket gives a vendor request
-	 * no status code of its own — so callers read it rather than catching.
-	 */
-	async vendor(requestType: string, requestData: JsonObject = {}): Promise<JsonObject> {
+	async call(operation: string, params: JsonObject = {}): Promise<JsonObject> {
 		const res = await this.ws.call('CallVendorRequest', {
 			vendorName: VENDOR_NAME,
-			requestType,
-			requestData,
+			requestType: operation,
+			requestData: params,
 		})
 		return asJsonObject(res.responseData)
 	}

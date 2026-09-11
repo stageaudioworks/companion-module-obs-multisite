@@ -2,6 +2,24 @@
 
 All notable changes to this module are recorded here.
 
+## [0.2.0]
+
+- **A campus player appliance can be driven directly.** The connection now has a
+  **Connect to** choice: OBS, as before, or a campus player. The appliance has
+  no OBS at all, so the module talks to its own HTTP API instead — nothing to
+  install on that box, and no password involved.
+- The same actions, feedbacks, variables and presets work against either end,
+  because both offer the same controls. The two places the appliance names a
+  command differently (`follow-live` for `return-to-live`, `load` for
+  `load-event`) are a table in one file, and there is a test pinning it.
+- Against an appliance the module polls about once a second, since a player
+  pushes nothing to listen for.
+- The encoder's actions, feedbacks, variables and presets are not offered
+  against an appliance: a player only ever receives, and a button that can only
+  refuse is worse than one that is not there.
+- The port field defaults to 0, meaning "4455 for OBS, 8080 for a campus
+  player", so one field covers both.
+
 ## [0.1.0]
 
 First functional version.

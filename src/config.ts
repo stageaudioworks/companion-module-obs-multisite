@@ -6,19 +6,30 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 		{
 			type: 'static-text',
 			id: 'info',
-			label: 'Before you start',
+			label: 'What this connects to',
 			width: 12,
 			value:
-				'This module talks to OBS over obs-websocket, and needs two things on the OBS machine: ' +
-				'the WebSocket Server turned on (Tools → WebSocket Server Settings) and the obs-multisite ' +
-				'plugin loaded (Tools → Multisite, or a Multisite source in the scene). ' +
-				'It opens its own connection, so the host, port and password below are the same ones ' +
-				'you gave the OBS Studio module.',
+				'The same controls live in two places, so this module can drive either: the main site, where ' +
+				'OBS runs the obs-multisite plugin, and a satellite, where the campus player appliance runs ' +
+				'on its own. Pick one below. Against OBS the plugin needs the WebSocket Server turned on ' +
+				'(Tools → WebSocket Server Settings); against a campus player there is nothing to switch on — ' +
+				'it already serves this on its own port.',
+		},
+		{
+			type: 'dropdown',
+			id: 'connection_type',
+			label: 'Connect to',
+			width: 12,
+			default: 'obs',
+			choices: [
+				{ id: 'obs', label: 'OBS running the obs-multisite plugin — main site controls and a campus feed' },
+				{ id: 'appliance', label: 'A campus player appliance — its own controls over HTTP' },
+			],
 		},
 		{
 			type: 'textinput',
 			id: 'host',
-			label: 'OBS host',
+			label: 'Host',
 			width: 8,
 			default: '127.0.0.1',
 			regex: Regex.HOSTNAME,
@@ -26,16 +37,16 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 		{
 			type: 'number',
 			id: 'port',
-			label: 'Port',
+			label: 'Port (0 = default: 4455 for OBS, 8080 for a campus player)',
 			width: 4,
-			default: 4455,
-			min: 1,
+			default: 0,
+			min: 0,
 			max: 65535,
 		},
 		{
 			type: 'secret-text',
 			id: 'password',
-			label: 'OBS WebSocket password',
+			label: 'OBS WebSocket password (OBS only)',
 			width: 12,
 			default: '',
 		},

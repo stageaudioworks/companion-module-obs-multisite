@@ -10,6 +10,17 @@ and **Play / Hold / Resume / Catch up / Jog** at a campus, with the buttons
 lighting up to show what is actually happening — on air, held, buffering, how
 far behind live, or that the link has gone wobbly.
 
+**It drives either end of the system**, and which one is decided when the
+connection is added:
+
+- **A main site**, where OBS runs the obs-multisite plugin. This also gets you
+  the encoder's side of a feed being received there.
+- **A satellite**, where the campus player appliance runs on its own box. It has
+  no OBS at all, so the module talks to it over its own HTTP interface instead.
+
+Everything else — the buttons, the lights, the variables, the presets — is the
+same either way, because both ends offer the same controls.
+
 ## Status
 
 **Alpha, and not yet in the Companion store.** It has to be installed as a
@@ -19,21 +30,24 @@ event end to end.
 
 ## Getting started
 
-You need three things on the machine running OBS:
+Then, in Companion, add a connection, choose **Connect to**, and fill in the
+host.
 
-1. The **obs-multisite plugin** loaded (Tools → Multisite, or a Multisite source
-   in the scene collection).
-2. The **WebSocket Server** turned on — Tools → WebSocket Server Settings. It
-   ships with OBS 28 and later.
-3. That machine reachable from wherever Companion runs.
-
-Then, in Companion, add a connection and enter the OBS host, the WebSocket port
-(4455 by default) and the WebSocket password.
+**Pointing at OBS.** That machine needs the **obs-multisite plugin** loaded
+(Tools → Multisite, or a Multisite source in the scene collection) and the
+**WebSocket Server** turned on — Tools → WebSocket Server Settings, which ships
+with OBS 28 and later. Enter the WebSocket port (4455 by default) and the
+password.
 
 > This module opens its own obs-websocket connection, so the host, port and
 > password are the same ones you may already have given Companion's OBS Studio
 > module. Companion modules each own their connection; there is no way around
 > entering them twice.
+
+**Pointing at a campus player.** Nothing to switch on: the appliance already
+serves its controls on its own port (8080 by default), so enter its address and
+leave the port at 0. There is no password — the appliance's interface is guarded
+by the network it is on, and by its own **Lock**.
 
 See [companion/HELP.md](./companion/HELP.md) for what each action, feedback and
 variable does.
@@ -63,26 +77,38 @@ watches that directory.
 
 ## How it works
 
-Everything here is an adapter. The obs-multisite plugin exposes its commands as
-**obs-websocket vendor requests** under the vendor name `obs-multisite`, and
-pushes **vendor events** when the state changes. This module calls those
-requests and listens for those events — it adds no control logic of its own, so
-a button here and a keypress on the desk cannot disagree about what "hold"
-means.
+Everything here is an adapter, and there are **two adapters, one for each wire**.
 
-The command names are the same ones the plugin's own web pages use, which is
-what makes the two interchangeable. If a newer plugin adds a command this module
-does not know yet, the **Any obs-multisite request** action reaches it without
-waiting for a module release.
+Against **OBS**, the obs-multisite plugin exposes its commands as
+**obs-websocket vendor requests** under the vendor name `obs-multisite`, and
+pushes **vendor events** when the state changes. The module calls those requests
+and listens for those events.
+
+Against a **campus player**, the appliance serves the same controls on its own
+HTTP API — `GET /api/status`, `POST /api/hold`, `POST /api/follow-live` and the
+rest — and pushes nothing, so the module polls it about once a second.
+
+Either way it adds no control logic of its own, so a button here and a keypress
+on the desk cannot disagree about what "hold" means. The command names are the
+ones the plugin's own pages use, and the two places the appliance names things
+differently (`follow-live` for `return-to-live`, `load` for `load-event`) are a
+table in one file rather than a difference the rest of the module can see.
+
+If a newer plugin adds a command this module does not know yet, the **Any
+obs-multisite request** action reaches it without waiting for a module release.
+There is nothing equivalent on an appliance, whose set of routes is fixed.
 
 ## Requirements
 
 - **Companion 4.0 or later** — this uses module API `@companion-module/base` 2.x,
   and Companion installs modules on demand from 4.0. (It also loads as a developer
   module from the 3.x launcher, but the store path is 4.0 and up.)
-- obs-multisite **v0.1.10-alpha or later** — the release that carries the
-  obs-websocket **vendor API**. Against an older plugin the connection succeeds
-  but no commands appear; the module logs that it found nothing to talk to.
+- obs-multisite **v0.1.10-alpha or later**, if you are pointing at **OBS** — the
+  release that carries the obs-websocket **vendor API**. Against an older plugin
+  the connection succeeds but no commands appear; the module logs that it found
+  nothing to talk to.
+- A **campus player** appliance, if you are pointing at one of those instead.
+  Any release that serves its HTTP API will do — that is all of them.
 
 ## License
 

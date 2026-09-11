@@ -127,8 +127,14 @@ export function UpdatePresets(self: ModuleInstance): void {
 		],
 	}
 
-	const structure: CompanionPresetSection<ModuleSchema>[] = [
-		{
+	const structure: CompanionPresetSection<ModuleSchema>[] = []
+
+	// The encoder bank belongs to a main site. A campus player has no encoder,
+	// so a section of buttons that can only refuse is not offered at all — and
+	// the presets it would have referenced are dropped below, because a preset
+	// with no section is still draggable from the presets list.
+	if (self.isObs) {
+		structure.push({
 			id: 'encoder',
 			name: 'Multisite: main site',
 			definitions: [
@@ -140,28 +146,35 @@ export function UpdatePresets(self: ModuleInstance): void {
 					presets: ['encoder_go_live', 'encoder_end', 'encoder_status'],
 				},
 			],
-		},
-		{
-			id: 'decoder',
-			name: 'Multisite: campus',
-			definitions: [
-				{
-					id: 'decoder_transport',
-					type: 'simple',
-					name: 'Transport',
-					description: 'Play, hold and catch up, with the lights already attached.',
-					presets: ['decoder_play', 'decoder_hold', 'decoder_continue', 'decoder_catch_up', 'decoder_return_live'],
-				},
-				{
-					id: 'decoder_nudge',
-					type: 'simple',
-					name: 'Nudge and status',
-					description: 'Step ten seconds either way, and a button showing how far behind live it is.',
-					presets: ['decoder_jog_back', 'decoder_jog_forward', 'decoder_status'],
-				},
-			],
-		},
-	]
+		})
+	}
+
+	structure.push({
+		id: 'decoder',
+		name: 'Multisite: campus',
+		definitions: [
+			{
+				id: 'decoder_transport',
+				type: 'simple',
+				name: 'Transport',
+				description: 'Play, hold and catch up, with the lights already attached.',
+				presets: ['decoder_play', 'decoder_hold', 'decoder_continue', 'decoder_catch_up', 'decoder_return_live'],
+			},
+			{
+				id: 'decoder_nudge',
+				type: 'simple',
+				name: 'Nudge and status',
+				description: 'Step ten seconds either way, and a button showing how far behind live it is.',
+				presets: ['decoder_jog_back', 'decoder_jog_forward', 'decoder_status'],
+			},
+		],
+	})
+
+	if (!self.isObs) {
+		delete presets.encoder_go_live
+		delete presets.encoder_end
+		delete presets.encoder_status
+	}
 
 	self.setPresetDefinitions(structure, presets)
 }

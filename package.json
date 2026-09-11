@@ -11,6 +11,7 @@
 		"build:main": "tsc -p tsconfig.build.json",
 		"check-types": "tsc -p tsconfig.json --noEmit",
 		"dev": "tsc -p tsconfig.build.json --watch",
+		"check": "run build && companion-module-check",
 		"lint:raw": "eslint",
 		"lint": "run lint:raw .",
 		"test": "vitest --run"

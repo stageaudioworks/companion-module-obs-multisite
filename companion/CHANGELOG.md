@@ -2,7 +2,7 @@
 
 All notable changes to this module are recorded here.
 
-## [0.1.0] — unreleased
+## [0.1.0]
 
 First functional version.
 
@@ -18,3 +18,5 @@ First functional version.
 - State is seeded by asking on connect and by a slow poll, as well as by the
   plugin's pushed events, so a module that connects mid-event shows the truth
   immediately rather than waiting for the next change.
+- First tested against a real OBS: the connection, both halves' commands and the
+  feedbacks. It has not yet been through a full event.

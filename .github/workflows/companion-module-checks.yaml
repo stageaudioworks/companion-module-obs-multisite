@@ -23,6 +23,10 @@ jobs:
         run: yarn install
         env:
           CI: true
+      - name: Validate (the store's own checks)
+        run: yarn check
+        env:
+          CI: true
       - name: Build and package
         run: yarn package
         env:

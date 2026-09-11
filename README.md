@@ -98,6 +98,12 @@ If a newer plugin adds a command this module does not know yet, the **Any
 obs-multisite request** action reaches it without waiting for a module release.
 There is nothing equivalent on an appliance, whose set of routes is fixed.
 
+**Markers** are not a text field you have to get right. The main site's
+configured cues fill the _Drop a marker_ list; the cues _this room has actually
+reached_ fill _Jump to a marker_ — on either end. Each one is also generated as
+its own preset button, and a cue the main site drops while you are watching
+appears within about a second.
+
 ## Requirements
 
 - **Companion 4.0 or later** — this uses module API `@companion-module/base` 2.x,

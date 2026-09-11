@@ -54,6 +54,14 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	private reconnectDelayMs = 1000
 	private destroyed = false
 
+	/**
+	 * The lists the dropdowns are built from, as they were when the definitions
+	 * were last registered. Companion takes a copy at registration, so a list
+	 * that changes afterwards has to be re-registered to be seen.
+	 */
+	private lastActionChoices = ''
+	private definitionTimer?: NodeJS.Timeout
+
 	constructor(internal: unknown) {
 		super(internal)
 	}
@@ -165,6 +173,48 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		this.updateFeedbacks()
 		this.updatePresets()
 		this.updateVariables()
+		// These definitions were just built from the current lists, so there is
+		// nothing for the change check to notice.
+		this.lastActionChoices = this.actionChoiceSignature()
+	}
+
+	/**
+	 * The lists that populate dropdowns and generate per-marker buttons: the
+	 * main site's configured markers, this room's own markers, and its
+	 * recordings. One string, compared for equality, is enough to notice any of
+	 * them changing.
+	 */
+	private actionChoiceSignature(): string {
+		const labels = this.encoderStatus.marker_labels ?? []
+		const markers = this.decoderStatus.markers ?? []
+		const events = this.events.events ?? []
+		return [
+			labels.join('\u0001'),
+			markers.map((marker) => `${marker.id}:${marker.label}`).join('\u0001'),
+			events.map((event) => event.event_id).join('\u0001'),
+		].join('\u0002')
+	}
+
+	/**
+	 * Re-register the actions and the presets when those lists change —
+	 * debounced, because a status arriving and the recordings list arriving are
+	 * two changes a moment apart and one rebuild covers both.
+	 *
+	 * Deliberately NOT the variables: redefining those drops the values the host
+	 * holds for them, and a marker appearing is no reason for every variable on
+	 * every button to blank.
+	 */
+	private rebuildIfChoicesChanged(): void {
+		const signature = this.actionChoiceSignature()
+		if (signature === this.lastActionChoices) return
+		this.lastActionChoices = signature
+
+		if (this.definitionTimer) clearTimeout(this.definitionTimer)
+		this.definitionTimer = setTimeout(() => {
+			this.definitionTimer = undefined
+			this.updateActions()
+			this.updatePresets()
+		}, 200)
 	}
 
 	// ── Connecting ──────────────────────────────────────────────────────────
@@ -204,6 +254,11 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		this.updateStatus(InstanceStatus.Ok)
 		this.log('info', this.isObs ? 'connected to OBS' : 'connected to the campus player')
 		void this.refreshAll()
+		// The recordings list is not in the status document, so it is asked for
+		// once here — otherwise the "Load a recording" list stays empty until
+		// somebody presses Refresh, which is exactly the sort of thing that
+		// gets read as "the module is broken".
+		void this.fetchEvents()
 		this.pollTimer = setInterval(() => void this.refreshAll(), this.transport?.pollIntervalMs ?? 5000)
 	}
 
@@ -228,6 +283,10 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		if (this.reconnectTimer) {
 			clearTimeout(this.reconnectTimer)
 			this.reconnectTimer = undefined
+		}
+		if (this.definitionTimer) {
+			clearTimeout(this.definitionTimer)
+			this.definitionTimer = undefined
 		}
 	}
 
@@ -283,6 +342,9 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		// An appliance has no encoder feedbacks registered, and asking Companion
 		// to check a definition that does not exist is a warning every second.
 		if (this.isObs) this.checkFeedbacks('encoder_live', 'encoder_link_health')
+		// The main site's marker labels arrive with this document, and the
+		// "Drop a marker" list is built from them.
+		this.rebuildIfChoicesChanged()
 	}
 
 	applyDecoderStatus(status: JsonObject): void {
@@ -298,6 +360,9 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 			'decoder_behind_live',
 			'decoder_link_health',
 		)
+		// Markers arrive with this document — a cue the main site has just
+		// dropped is a new button to offer.
+		this.rebuildIfChoicesChanged()
 	}
 
 	/** The recordings list, fetched on demand — for an action or a dropdown. */
@@ -305,6 +370,7 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		try {
 			const res = await this.transport!.call('decoder/events')
 			this.events = res
+			this.rebuildIfChoicesChanged()
 		} catch {
 			this.events = { error: 'could not read the recordings list' }
 		}

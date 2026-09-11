@@ -34,7 +34,8 @@ are not offered against one.
   current time, exactly as the dock does.
 - **End the broadcast** — finish cleanly.
 - **Drop a marker** — pick one of the markers the main site published, or type
-  your own.
+  your own. The list is the main site's configured cues, and fills in as soon as
+  it is connected.
 
 **Campus (decoder)**
 
@@ -47,9 +48,13 @@ are not offered against one.
 - **Seek** — go to a clock time within the recording (seconds from midnight).
 - **Sit behind live** — hold a constant delay behind live. Zero returns to the
   live edge.
-- **Jump to a marker** — go to a cue.
+- **Jump to a marker** — go to a cue. The list is _this room's_ markers: the ones
+  the main site has actually dropped, on either end. A cue the main site drops
+  while you are watching appears in the list by itself.
 - **Load a recording** — play a past event from this room. Pinning does not
   follow the room afterwards.
+- **Refresh the recordings list** — ask the room what it has recorded. The list
+  is filled in when the module connects; this is for after an event ends.
 
 **Any obs-multisite request** — call any command of the plugin by name, with a
 JSON object. The escape hatch for a command a newer plugin has that this module
@@ -93,3 +98,8 @@ Two banks — **Multisite: main site** (Go live, End, status) and
 **Multisite: campus** (Play, Hold, Resume, Catch up, Return to the room, Jog
 either way, status) — with the feedbacks already attached. Only the campus bank
 is offered against a campus player.
+
+Under each bank there is also a **Markers** group (main site) or a **Cues** group
+(campus) with one button per cue, already named: _Sermon Start_, _Offering_, and
+so on. Those are generated from the markers in play, so they change as the main
+site's configuration and the room's markers do.

@@ -6,13 +6,20 @@
 // is the transport controls with the lights already attached. Presets are only
 // a starting point — everything is still editable afterwards.
 //
+// The marker buttons are generated rather than written out: one per cue, so
+// nobody has to open a dropdown mid-service to reach the cue they can see
+// coming. Companion builds those from a template group, which is why the list
+// is read here rather than baked in.
+//
 import type {
 	CompanionPresetDefinitions,
+	CompanionPresetGroup,
 	CompanionPresetSection,
 	CompanionButtonStyleProps,
 } from '@companion-module/base'
 import type ModuleInstance from './main.js'
 import type { ModuleSchema } from './main.js'
+import { decoderMarkers } from './actions.js'
 
 function style(text: string, bgcolor: number, color = 0xffffff): CompanionButtonStyleProps {
 	return { text, size: 'auto', color, bgcolor, show_topbar: false }
@@ -127,6 +134,51 @@ export function UpdatePresets(self: ModuleInstance): void {
 		],
 	}
 
+	// ── One button per marker ────────────────────────────────────────────────
+	//
+	// A volunteer should not have to open a dropdown mid-service to reach the cue
+	// they can see coming. Companion generates one preset per value from a
+	// template group, so each cue becomes a button of its own.
+	//
+	// The button shows the cue's name and carries the cue's name; a marker's id
+	// is a timestamp and would read as nothing on a button, so the *label* is
+	// what these hold — and the decode action turns a label back into the marker
+	// it names.
+
+	const encoderLabels = self.encoderStatus.marker_labels ?? []
+	if (self.isObs && encoderLabels.length > 0) {
+		presets['encoder_marker_any'] = {
+			type: 'simple',
+			name: 'Encoder: Drop a marker',
+			style: { text: '$(local:marker)', size: 'auto', color: 0xffffff, bgcolor: 0x333333, show_topbar: false },
+			localVariables: [{ variableType: 'simple', variableName: 'marker', startupValue: '' }],
+			steps: [
+				{
+					down: [{ actionId: 'encoder_marker', options: { label: { isExpression: true, value: '$(local:marker)' } } }],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+	}
+
+	const roomMarkers = decoderMarkers(self.decoderStatus.markers ?? [])
+	if (roomMarkers.length > 0) {
+		presets['decoder_marker_any'] = {
+			type: 'simple',
+			name: 'Decoder: Jump to a marker',
+			style: { text: '$(local:marker)', size: 'auto', color: 0xffffff, bgcolor: 0x333333, show_topbar: false },
+			localVariables: [{ variableType: 'simple', variableName: 'marker', startupValue: '' }],
+			steps: [
+				{
+					down: [{ actionId: 'decoder_marker', options: { id: { isExpression: true, value: '$(local:marker)' } } }],
+					up: [],
+				},
+			],
+			feedbacks: [],
+		}
+	}
+
 	const structure: CompanionPresetSection<ModuleSchema>[] = []
 
 	// The encoder bank belongs to a main site. A campus player has no encoder,
@@ -134,41 +186,57 @@ export function UpdatePresets(self: ModuleInstance): void {
 	// the presets it would have referenced are dropped below, because a preset
 	// with no section is still draggable from the presets list.
 	if (self.isObs) {
-		structure.push({
-			id: 'encoder',
-			name: 'Multisite: main site',
-			definitions: [
-				{
-					id: 'encoder_controls',
-					type: 'simple',
-					name: 'The broadcast',
-					description: 'Start and stop the event, and a button showing whether it is on air.',
-					presets: ['encoder_go_live', 'encoder_end', 'encoder_status'],
-				},
-			],
-		})
+		const encoderGroups: CompanionPresetGroup<ModuleSchema>[] = [
+			{
+				id: 'encoder_controls',
+				type: 'simple',
+				name: 'The broadcast',
+				description: 'Start and stop the event, and a button showing whether it is on air.',
+				presets: ['encoder_go_live', 'encoder_end', 'encoder_status'],
+			},
+		]
+		if (encoderLabels.length > 0) {
+			encoderGroups.push({
+				id: 'encoder_markers',
+				type: 'template',
+				name: 'Markers',
+				description: 'One button per cue the main site is configured with.',
+				presetId: 'encoder_marker_any',
+				templateVariableName: 'marker',
+				templateValues: encoderLabels.map((label) => ({ name: label, value: label })),
+			})
+		}
+		structure.push({ id: 'encoder', name: 'Multisite: main site', definitions: encoderGroups })
 	}
 
-	structure.push({
-		id: 'decoder',
-		name: 'Multisite: campus',
-		definitions: [
-			{
-				id: 'decoder_transport',
-				type: 'simple',
-				name: 'Transport',
-				description: 'Play, hold and catch up, with the lights already attached.',
-				presets: ['decoder_play', 'decoder_hold', 'decoder_continue', 'decoder_catch_up', 'decoder_return_live'],
-			},
-			{
-				id: 'decoder_nudge',
-				type: 'simple',
-				name: 'Nudge and status',
-				description: 'Step ten seconds either way, and a button showing how far behind live it is.',
-				presets: ['decoder_jog_back', 'decoder_jog_forward', 'decoder_status'],
-			},
-		],
-	})
+	const decoderGroups: CompanionPresetGroup<ModuleSchema>[] = [
+		{
+			id: 'decoder_transport',
+			type: 'simple',
+			name: 'Transport',
+			description: 'Play, hold and catch up, with the lights already attached.',
+			presets: ['decoder_play', 'decoder_hold', 'decoder_continue', 'decoder_catch_up', 'decoder_return_live'],
+		},
+		{
+			id: 'decoder_nudge',
+			type: 'simple',
+			name: 'Nudge and status',
+			description: 'Step ten seconds either way, and a button showing how far behind live it is.',
+			presets: ['decoder_jog_back', 'decoder_jog_forward', 'decoder_status'],
+		},
+	]
+	if (roomMarkers.length > 0) {
+		decoderGroups.push({
+			id: 'decoder_markers',
+			type: 'template',
+			name: 'Cues',
+			description: 'One button per marker this room has reached.',
+			presetId: 'decoder_marker_any',
+			templateVariableName: 'marker',
+			templateValues: roomMarkers.map((marker) => ({ name: marker.label, value: marker.label })),
+		})
+	}
+	structure.push({ id: 'decoder', name: 'Multisite: campus', definitions: decoderGroups })
 
 	if (!self.isObs) {
 		delete presets.encoder_go_live

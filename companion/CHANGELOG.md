@@ -2,6 +2,24 @@
 
 All notable changes to this module are recorded here.
 
+## [0.3.0]
+
+- **Markers are properly controllable.** The **Jump to a marker** list is built
+  from the room's own markers — from the plugin and from an appliance alike —
+  rather than being empty, and **Drop a marker** is filled in once the main
+  site's status arrives instead of being frozen empty at start-up. Both lists are
+  re-registered when they change, so a cue the main site drops becomes a button
+  without reloading the module.
+- **One button per cue.** Each configured marker is now generated as its own
+  preset button — _Drop Sermon Start_, _Jump to Offering_ — so nobody has to open
+  a dropdown mid-service to reach the cue they can see coming.
+- **The recordings list is fetched on connect**, and there is a new **Refresh the
+  recordings list** action. Previously nothing ever asked for it, so "Load a
+  recording" stayed empty however long you waited.
+- Marker buttons carry the cue's **label**, never its id: an id is a timestamp
+  and reads as nothing on a button. The action turns a label back into the
+  newest marker of that name, so the same cue dropped twice is one button.
+
 ## [0.2.0]
 
 - **A campus player appliance can be driven directly.** The connection now has a

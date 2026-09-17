@@ -179,6 +179,22 @@ export function UpdatePresets(self: ModuleInstance): void {
 		}
 	}
 
+	// Dropping a cue from this campus. Custom on purpose: a service has no fixed
+	// set of moments, so the name lives on the button's local variable.
+	presets['decoder_cue_any'] = {
+		type: 'simple',
+		name: 'Campus: Drop a cue',
+		style: { text: '$(local:cue)', size: 'auto', color: 0xffffff, bgcolor: 0x333333, show_topbar: false },
+		localVariables: [{ variableType: 'simple', variableName: 'cue', startupValue: '' }],
+		steps: [
+			{
+				down: [{ actionId: 'decoder_cue', options: { label: { isExpression: true, value: '$(local:cue)' } } }],
+				up: [],
+			},
+		],
+		feedbacks: [],
+	}
+
 	const structure: CompanionPresetSection<ModuleSchema>[] = []
 
 	// The encoder bank belongs to a main site. A campus player has no encoder,
@@ -236,6 +252,17 @@ export function UpdatePresets(self: ModuleInstance): void {
 			templateValues: roomMarkers.map((marker) => ({ name: marker.label, value: marker.label })),
 		})
 	}
+	// Dropping a cue from the campus. Always offered, unlike the marker groups:
+	// a box with no cues yet is exactly the box that needs a button to drop the
+	// first one.
+	decoderGroups.push({
+		id: 'decoder_cue_drop',
+		type: 'simple',
+		name: 'Drop a cue',
+		description: 'Drop a cue from this campus, with a name you set on the button.',
+		presets: ['decoder_cue_any'],
+	})
+
 	structure.push({ id: 'decoder', name: 'Multisite: campus', definitions: decoderGroups })
 
 	if (!self.isObs) {

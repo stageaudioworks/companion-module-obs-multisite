@@ -49,8 +49,11 @@ are not offered against one.
 - **Sit behind live** — hold a constant delay behind live. Zero returns to the
   live edge.
 - **Jump to a marker** — go to a cue. The list is _this room's_ markers: the ones
-  the main site has actually dropped, on either end. A cue the main site drops
-  while you are watching appears in the list by itself.
+  any site has actually dropped, on either end, each showing the site that set
+  it. A cue dropped while you are watching appears in the list by itself.
+- **Campus: Drop a cue** — drop a cue with a name of your own from this campus.
+  Every site sees it, carrying this box's site name, so a cue set here is never
+  mistaken for the main site's.
 - **Load a recording** — play a past event from this room. Pinning does not
   follow the room afterwards.
 - **Refresh the recordings list** — ask the room what it has recorded. The list
@@ -102,4 +105,6 @@ is offered against a campus player.
 Under each bank there is also a **Markers** group (main site) or a **Cues** group
 (campus) with one button per cue, already named: _Sermon Start_, _Offering_, and
 so on. Those are generated from the markers in play, so they change as the main
-site's configuration and the room's markers do.
+site's configuration and the room's markers do. The campus bank also carries a
+**Drop a cue** group: one button whose name you set, to drop a cue from this
+campus under the site name configured on that box.

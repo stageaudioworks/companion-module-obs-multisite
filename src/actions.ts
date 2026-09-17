@@ -31,6 +31,7 @@ export type ActionsSchema = {
 	decoder_seek: { options: { seconds: number } }
 	decoder_delay: { options: { seconds: number } }
 	decoder_marker: { options: { id: string } }
+	decoder_cue: { options: { label: string } }
 	decoder_load_event: { options: { event_id: string } }
 	decoder_refresh_recordings: { options: NoOptions }
 	vendor_request: { options: { request: string; data: string } }
@@ -58,12 +59,12 @@ function markerChoices(self: ModuleInstance): { id: string; label: string }[] {
  * twice is one cue to a volunteer. Exported because the presets turn each one
  * into a button of its own, and both need the same de-duplication.
  */
-export function decoderMarkers(markers: DecoderMarker[]): { id: string; label: string }[] {
-	const newest = new Map<string, string>()
+export function decoderMarkers(markers: DecoderMarker[]): { id: string; label: string; author?: string }[] {
+	const newest = new Map<string, DecoderMarker>()
 	for (const marker of markers) {
-		newest.set(marker.label || marker.id, marker.id) // later entries overwrite
+		newest.set(marker.label || marker.id, marker) // later entries overwrite
 	}
-	return [...newest].map(([label, id]) => ({ id, label }))
+	return [...newest].map(([label, marker]) => ({ id: marker.id, label, author: marker.author }))
 }
 
 /**
@@ -86,7 +87,13 @@ export function resolveMarkerId(markers: DecoderMarker[], wanted: string): strin
 function decoderMarkerChoices(self: ModuleInstance): { id: string; label: string }[] {
 	const markers = decoderMarkers(self.decoderStatus.markers ?? [])
 	if (markers.length === 0) return [{ id: '', label: '(no markers yet — the main site has not dropped one)' }]
-	return markers
+	// The value stays the id (the label alone is not unique); the author is
+	// shown so a cue set at another campus is never mistaken for the main
+	// site's.
+	return markers.map((marker) => ({
+		id: marker.id,
+		label: marker.author ? `${marker.label} — ${marker.author}` : marker.label,
+	}))
 }
 
 /** The recordings the room has, as dropdown choices. */
@@ -267,6 +274,26 @@ export function UpdateActions(self: ModuleInstance): void {
 				// A button may hold an id, from this dropdown, or a label, from a
 				// preset — a label is the only thing readable on a button.
 				await self.command('decoder/marker', { id: resolveMarkerId(self.decoderStatus.markers ?? [], wanted) })
+			},
+		},
+
+		decoder_cue: {
+			name: 'Campus: Drop a cue',
+			description:
+				'Drop a cue with a name of your own from this campus. Every site sees it, carrying this box’s site name.',
+			options: [
+				{
+					id: 'label',
+					type: 'textinput',
+					label: 'Cue name',
+					default: '',
+					useVariables: true,
+				},
+			],
+			callback: async (event) => {
+				const label = String(event.options.label ?? '').trim()
+				if (label === '') return
+				await self.command('decoder/cue', { label })
 			},
 		},
 

@@ -61,6 +61,8 @@ export interface DecoderMarker {
 	label: string
 	id: string
 	at_ms: number
+	/** The site that set the cue ("Campus B"); absent or empty means the main site. */
+	author?: string
 }
 
 /**

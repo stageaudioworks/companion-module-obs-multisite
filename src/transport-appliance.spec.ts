@@ -38,6 +38,14 @@ describe('applianceRequest', () => {
 		expect(applianceRequest('decoder/marker', { id: 'sermon' })?.query).toEqual({ id: 'sermon' })
 	})
 
+	it('sends a cue the campus authors, under the player’s own label name', () => {
+		expect(applianceRequest('decoder/cue', { label: 'Our notice' })).toEqual({
+			method: 'POST',
+			path: '/api/cue',
+			query: { label: 'Our notice' },
+		})
+	})
+
 	it('renames the two commands that differ', () => {
 		// The plugin calls these return-to-live and load-event; a player calls
 		// them follow-live and load, and load takes `event`, not `event_id`.
@@ -86,6 +94,7 @@ describe('applianceOperations', () => {
 				'decoder/seek',
 				'decoder/delay',
 				'decoder/marker',
+				'decoder/cue',
 				'decoder/load-event',
 				'decoder/return-to-live',
 				'decoder/events',

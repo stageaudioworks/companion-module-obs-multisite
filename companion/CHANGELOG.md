@@ -2,6 +2,16 @@
 
 All notable changes to this module are recorded here.
 
+## [Unreleased]
+
+- **A campus can drop a cue.** New **Campus: Drop a cue** action, with a name of
+  your own, reaching every other site under that box's site name. Works against
+  OBS (the plugin's `decoder/cue` request) and against a campus player
+  (`POST /api/cue`).
+- **Cues show who set them.** The **Jump to a marker** list labels each cue with
+  the site that dropped it, so a cue set at another campus is never mistaken for
+  the main site's.
+
 ## [0.3.0]
 
 - **Markers are properly controllable.** The **Jump to a marker** list is built

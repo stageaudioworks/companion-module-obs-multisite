@@ -32,6 +32,18 @@ describe('decoderMarkers', () => {
 	it('falls back to the id when a marker was dropped with no label', () => {
 		expect(decoderMarkers([marker('', 'id-9')])).toEqual([{ label: 'id-9', id: 'id-9' }])
 	})
+
+	it('carries the site that set the cue', () => {
+		// A cue dropped at a campus is never mistaken for the main site's.
+		const room: DecoderMarker[] = [
+			{ label: 'Notice', id: 'id-4', at_ms: 0, author: 'Campus B' },
+			{ label: 'Sermon Start', id: 'id-5', at_ms: 0 },
+		]
+		expect(decoderMarkers(room)).toEqual([
+			{ label: 'Notice', id: 'id-4', author: 'Campus B' },
+			{ label: 'Sermon Start', id: 'id-5' },
+		])
+	})
 })
 
 describe('resolveMarkerId', () => {

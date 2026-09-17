@@ -44,6 +44,7 @@ const ROUTES: Record<string, Route> = {
 	'decoder/seek': { method: 'POST', path: '/api/seek', query: { ms: 'ms' } },
 	'decoder/delay': { method: 'POST', path: '/api/delay', query: { seconds: 'seconds' } },
 	'decoder/marker': { method: 'POST', path: '/api/marker', query: { id: 'id' } },
+	'decoder/cue': { method: 'POST', path: '/api/cue', query: { label: 'label' } },
 	'decoder/load-event': { method: 'POST', path: '/api/load', query: { event_id: 'event' } },
 	'decoder/return-to-live': { method: 'POST', path: '/api/follow-live' },
 	'decoder/events': { method: 'GET', path: '/api/events' },

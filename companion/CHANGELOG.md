@@ -2,7 +2,7 @@
 
 All notable changes to this module are recorded here.
 
-## [Unreleased]
+## [0.3.1]
 
 - **A campus can drop a cue.** New **Campus: Drop a cue** action, with a name of
   your own, reaching every other site under that box's site name. Works against

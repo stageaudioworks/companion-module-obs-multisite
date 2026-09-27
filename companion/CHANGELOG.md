@@ -21,6 +21,8 @@ All notable changes to this module are recorded here.
   10½ hours in. The time is now turned into a position in the programme,
   across midnight too. A time outside the programme goes to its start or its
   live edge, and the log says so. Unchanged against OBS. (#1)
+- **Licensed MIT throughout.** The manifest declared GPL-3.0-only while the
+  source and `package.json` said MIT; it now says MIT too.
 
 ## [0.3.2]
 

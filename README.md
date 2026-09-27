@@ -123,9 +123,9 @@ other site carrying that box's site name.
 
 ## License
 
-The module source is **MIT** — a requirement of the Companion module store,
-which keeps modules portable. The module is distributed under
-**GPL-3.0-only**, declared in `companion/manifest.json`, matching the licence of
-[obs-multisite](https://github.com/stageaudioworks/obs-multisite) itself.
+**MIT**, the source and the module alike, as `package.json` and
+`companion/manifest.json` both declare. It talks to
+[obs-multisite](https://github.com/stageaudioworks/obs-multisite) (GPL-3.0) and
+to an Outpost box only over the network, and contains none of their code.
 
 See [LICENSE](./LICENSE).

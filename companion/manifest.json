@@ -4,7 +4,7 @@
 	"id": "obs-multisite",
 	"name": "obs-multisite",
 	"shortname": "obs-multisite",
-	"description": "Control a Multisite broadcast from a Stream Deck: go live and drop markers at the main site, and drive a campus feed's timeslipping — against OBS or a campus player appliance.",
+	"description": "Control a Multisite broadcast from a Stream Deck: go live and drop markers at the main site, and drive a campus feed's timeslipping — against OBS, a campus player appliance or an Outpost box.",
 	"version": "0.0.0",
 	"license": "GPL-3.0-only",
 	"repository": "git+https://github.com/stageaudioworks/companion-module-obs-multisite.git",

@@ -17,9 +17,12 @@ connection is added:
   the encoder's side of a feed being received there.
 - **A satellite**, where the campus player appliance runs on its own box. It has
   no OBS at all, so the module talks to it over its own HTTP interface instead.
+- **An Outpost box** (MultisiteOS), as a campus decoder or a main-site encoder,
+  through the box's own page on port 80. It needs no PIN, and the module follows
+  the box if it changes shape.
 
 Everything else — the buttons, the lights, the variables, the presets — is the
-same either way, because both ends offer the same controls.
+same whichever it is, because every end offers the same controls.
 
 ## Status
 
